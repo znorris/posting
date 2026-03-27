@@ -399,6 +399,17 @@ class TestLoadingRequest:
 
         assert snap_compare(POSTING_MAIN, run_before=run_before, terminal_size=(80, 44))
 
+    def test_request_loaded_into_view__auth_oauth2(self, snap_compare):
+        """Check that OAuth2 client credentials auth is loaded into the view."""
+
+        async def run_before(pilot: Pilot):
+            # Navigate to 'oauth2 example' and select it.
+            await pilot.press(*"jj")
+            await pilot.press("enter")
+            await pilot.press("ctrl+o", "t")  # jump to 'Auth' tab
+
+        assert snap_compare(POSTING_MAIN, run_before=run_before, terminal_size=(80, 50))
+
     def test_request_loaded_into_view__path_params(self, snap_compare):
         """Check that the request path params are loaded into the view."""
 

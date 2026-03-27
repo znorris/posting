@@ -1,0 +1,13 @@
+name: oauth2 example
+description: Example request using OAuth2 client credentials.
+method: GET
+url: https://api.example.com/resource
+auth:
+  type: oauth2_client_credentials
+  oauth2_client_credentials:
+    token_url: https://auth.example.com/oauth/token
+    client_id: my-client-id
+    client_secret: my-client-secret
+    scope: read write
+    extra_params:
+      audience: https://api.example.com
