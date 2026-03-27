@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, HttpUrl
 import rich
 import os
 from textual import log
-from posting.auth import HttpxBearerTokenAuth
+from posting.auth import HttpxBearerTokenAuth, OAuth2ClientCredentialsAuth
 from posting.tuple_to_multidict import tuples_to_dict
 from posting.variables import SubstitutionError
 from posting.version import VERSION
@@ -38,8 +38,15 @@ class Auth(BaseModel):
             assert self.bearer_token is not None
             return HttpxBearerTokenAuth(self.bearer_token.token)
         elif self.type == "oauth2_client_credentials":
-            # TODO: return OAuth2 httpx.Auth in layer 2
-            return None
+            assert self.oauth2_client_credentials is not None
+            oauth2 = self.oauth2_client_credentials
+            return OAuth2ClientCredentialsAuth(
+                token_url=oauth2.token_url,
+                client_id=oauth2.client_id,
+                client_secret=oauth2.client_secret,
+                scope=oauth2.scope,
+                extra_params=oauth2.extra_params,
+            )
         return None
 
     @classmethod

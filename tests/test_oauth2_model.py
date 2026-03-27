@@ -1,5 +1,6 @@
 """Tests for OAuth2 Client Credentials data model."""
 
+from posting.auth import OAuth2ClientCredentialsAuth
 from posting.collection import Auth, OAuth2ClientCredentials, RequestModel
 
 
@@ -50,14 +51,13 @@ class TestAuthOAuth2Integration:
             "audience": "https://api.example.com"
         }
 
-    def test_to_httpx_auth_returns_none(self):
-        """Placeholder until layer 2 adds the real auth class."""
+    def test_to_httpx_auth_returns_auth_instance(self):
         auth = Auth.oauth2_client_credentials_auth(
             token_url="https://auth.example.com/token",
             client_id="id",
             client_secret="secret",
         )
-        assert auth.to_httpx_auth() is None
+        assert isinstance(auth.to_httpx_auth(), OAuth2ClientCredentialsAuth)
 
     def test_model_dump_excludes_defaults(self):
         auth = Auth.oauth2_client_credentials_auth(
