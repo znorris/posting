@@ -1,15 +1,20 @@
+import json
 from typing import Protocol, runtime_checkable
 import httpx
+from rich.text import Text
 from textual import on, log
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.coordinate import Coordinate
 from textual.types import InputValidationOn
 from textual.validation import Length
 from textual.widgets import ContentSwitcher, Input, Label, Select, Static
 
-from posting.auth import HttpxBearerTokenAuth
-from posting.collection import Auth, BasicAuth, BearerTokenAuth, DigestAuth
+from posting.auth import HttpxBearerTokenAuth, OAuth2ClientCredentialsAuth
+from posting.collection import Auth, BasicAuth, BearerTokenAuth, DigestAuth, OAuth2ClientCredentials
+from posting.widgets.datatable import PostingDataTable
+from posting.widgets.key_value import KeyValueEditor, KeyValueInput
 from posting.widgets.select import PostingSelect
 from posting.widgets.variable_input import VariableInput
 
@@ -111,6 +116,114 @@ class BearerTokenForm(Vertical):
         return self.query_one("#token-input", Input)
 
 
+class ExtraParamsTable(PostingDataTable):
+    BINDINGS = [
+        Binding("backspace", action="remove_row", description="Remove row"),
+    ]
+
+    def on_mount(self):
+        self.fixed_columns = 1
+        self.show_header = False
+        self.cursor_type = "row"
+        self.zebra_stripes = True
+        self.add_columns("Key", "Value")
+
+    def to_dict(self) -> dict[str, str]:
+        result: dict[str, str] = {}
+        for row_index in range(self.row_count):
+            row = self.get_row_at(row_index)
+            key = row[0].plain if isinstance(row[0], Text) else row[0]
+            value = row[1].plain if isinstance(row[1], Text) else row[1]
+            result[key] = value
+        return result
+
+
+class OAuth2ClientCredentialsForm(Vertical):
+    DEFAULT_CSS = """
+    OAuth2ClientCredentialsForm {
+        padding: 1 0;
+
+        & .oauth2-field {
+            margin-bottom: 1;
+        }
+
+        & Label.oauth2-section-label {
+            margin-top: 1;
+            color: $text-muted;
+        }
+
+        & #oauth2-extra-params-editor {
+            height: 8;
+        }
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield Label("Token URL")
+        yield VariableInput(
+            placeholder="https://auth.example.com/oauth/token",
+            id="oauth2-token-url-input",
+            classes="oauth2-field",
+        )
+        yield Label("Client ID")
+        yield VariableInput(
+            placeholder="Enter client ID",
+            id="oauth2-client-id-input",
+            classes="oauth2-field",
+        )
+        yield Label("Client Secret")
+        yield VariableInput(
+            placeholder="Enter client secret",
+            password=True,
+            id="oauth2-client-secret-input",
+            classes="oauth2-field",
+        )
+        yield Label("Scope")
+        yield VariableInput(
+            placeholder="e.g. read write",
+            id="oauth2-scope-input",
+            classes="oauth2-field",
+        )
+        yield Label("Extra Parameters", classes="oauth2-section-label")
+        yield KeyValueEditor(
+            ExtraParamsTable(),
+            KeyValueInput(
+                VariableInput(placeholder="Key", id="oauth2-extra-param-key"),
+                VariableInput(placeholder="Value"),
+                button_label="Add parameter",
+            ),
+            empty_message="No extra parameters",
+            id="oauth2-extra-params-editor",
+        )
+
+    def set_values(
+        self,
+        token_url: str,
+        client_id: str,
+        client_secret: str,
+        scope: str = "",
+        extra_params: dict[str, str] | None = None,
+    ) -> None:
+        self.query_one("#oauth2-token-url-input", Input).value = token_url
+        self.query_one("#oauth2-client-id-input", Input).value = client_id
+        self.query_one("#oauth2-client-secret-input", Input).value = client_secret
+        self.query_one("#oauth2-scope-input", Input).value = scope
+        if extra_params:
+            table = self.query_one(ExtraParamsTable)
+            for key, value in extra_params.items():
+                table.add_row(key, value)
+
+    def get_values(self) -> dict[str, str]:
+        extra_params = self.query_one(ExtraParamsTable).to_dict()
+        return {
+            "token_url": self.query_one("#oauth2-token-url-input", Input).value,
+            "client_id": self.query_one("#oauth2-client-id-input", Input).value,
+            "client_secret": self.query_one("#oauth2-client-secret-input", Input).value,
+            "scope": self.query_one("#oauth2-scope-input", Input).value,
+            "extra_params": json.dumps(extra_params),
+        }
+
+
 class RequestAuth(VerticalScroll):
     DEFAULT_CSS = """
     RequestAuth {
@@ -153,6 +266,7 @@ class RequestAuth(VerticalScroll):
                         ("Basic", "basic"),
                         ("Digest", "digest"),
                         ("Bearer Token", "bearer-token"),
+                        ("OAuth2 Client Credentials", "oauth2-client-credentials"),
                     ],
                     allow_blank=False,
                     prompt="Auth Type",
@@ -168,6 +282,7 @@ class RequestAuth(VerticalScroll):
             yield UserNamePasswordForm(id="auth-form-basic")
             yield UserNamePasswordForm(id="auth-form-digest")
             yield BearerTokenForm(id="auth-form-bearer-token")
+            yield OAuth2ClientCredentialsForm(id="auth-form-oauth2-client-credentials")
 
     @on(Select.Changed, selector="#auth-type-select")
     def on_auth_type_changed(self, event: Select.Changed):
@@ -186,6 +301,15 @@ class RequestAuth(VerticalScroll):
                 return httpx.DigestAuth(**form.get_values())
             case "auth-form-bearer-token":
                 return HttpxBearerTokenAuth(**form.get_values())
+            case "auth-form-oauth2-client-credentials":
+                values = form.get_values()
+                return OAuth2ClientCredentialsAuth(
+                    token_url=values["token_url"],
+                    client_id=values["client_id"],
+                    client_secret=values["client_secret"],
+                    scope=values["scope"],
+                    extra_params=json.loads(values["extra_params"]),
+                )
             case _:
                 return None
 
@@ -215,6 +339,18 @@ class RequestAuth(VerticalScroll):
                 token = form_values["token"]
                 return Auth(
                     type="bearer_token", bearer_token=BearerTokenAuth(token=token)
+                )
+            case "auth-form-oauth2-client-credentials":
+                form_values = form.get_values()
+                return Auth(
+                    type="oauth2_client_credentials",
+                    oauth2_client_credentials=OAuth2ClientCredentials(
+                        token_url=form_values["token_url"],
+                        client_id=form_values["client_id"],
+                        client_secret=form_values["client_secret"],
+                        scope=form_values["scope"],
+                        extra_params=json.loads(form_values["extra_params"]),
+                    ),
                 )
             case _:
                 return None
@@ -255,6 +391,24 @@ class RequestAuth(VerticalScroll):
                 self.query_one("#auth-type-select", Select).value = "bearer-token"
                 self.query_one("#auth-form-bearer-token", BearerTokenForm).set_values(
                     auth.bearer_token.token
+                )
+            case "oauth2_client_credentials":
+                if auth.oauth2_client_credentials is None:
+                    log.warning(
+                        "OAuth2 client credentials auth selected, but no values provided."
+                    )
+                    return
+                self.query_one("#auth-type-select", Select).value = "oauth2-client-credentials"
+                oauth2 = auth.oauth2_client_credentials
+                self.query_one(
+                    "#auth-form-oauth2-client-credentials",
+                    OAuth2ClientCredentialsForm,
+                ).set_values(
+                    token_url=oauth2.token_url,
+                    client_id=oauth2.client_id,
+                    client_secret=oauth2.client_secret,
+                    scope=oauth2.scope,
+                    extra_params=oauth2.extra_params,
                 )
             case _:
                 log.warning(f"Unknown auth type: {auth.type}")
