@@ -95,6 +95,13 @@ def on_request(request: RequestModel, posting: Posting) -> None:
     request.auth = Auth.basic_auth("username", "password")
     # request.auth = Auth.digest_auth("username", "password")
     # request.auth = Auth.bearer_token_auth("token")
+    # request.auth = Auth.oauth2_client_credentials_auth(
+    #     token_url="https://auth.example.com/token",
+    #     client_id="my-client",
+    #     client_secret="my-secret",
+    #     scope="read write",
+    #     extra_params={"audience": "https://api.example.com"},
+    # )
 
     # This will be captured and written to the log.
     print("Request is being sent!")

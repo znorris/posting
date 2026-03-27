@@ -80,7 +80,7 @@ Features that are planned for future development but are not immediate prioritie
 - Status bar? Showing the currently selected env, collection, current path, whether there's unsaved changes, etc. <span class="tag ui">UI</span>
 - Highlighting variables in *tables* to show if they've resolved or not <span class="tag environment">Environment</span>
 - Create a `_template.posting.yaml` file for request templates <span class="tag requests">Requests</span>
-- OAuth2 implementation (need to scope out what's involved) <span class="tag auth">Auth</span>
+- OAuth2: additional grant types (authorization code, device code, etc.) <span class="tag auth">Auth</span>
 - Adding test framework <span class="tag testing">Testing</span>
 - Uploading files <span class="tag requests">Requests</span>
 - Cookie editor <span class="tag requests">Requests</span>
@@ -99,6 +99,7 @@ Features that have been implemented and are available in the latest version.
 - Pre-request and post-response scripts <span class="tag scripting">Scripting</span>
 - Parse cURL commands <span class="tag import">Import</span>
 - Watching environment files for changes & updating the UI <span class="tag environment">Environment</span>
+- OAuth2 client credentials flow <span class="tag auth">Auth</span>
 - Bearer token auth <span class="tag auth">Auth</span>
 - Add "quit" to command palette and footer <span class="tag ux">UX</span>
 - More user friendly errors <span class="tag ux">UX</span>

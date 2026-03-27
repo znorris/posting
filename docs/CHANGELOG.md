@@ -1,3 +1,10 @@
+## Unreleased
+
+### Added
+
+- Added OAuth2 Client Credentials authentication flow. Configure token URL, client ID, client secret, scope, and extra parameters (e.g. `audience` for Auth0). Tokens are fetched automatically and cached in memory with expiry handling.
+- Added new documentation on authentication methods.
+
 ## 2.10.0 [25th March 2026]
 
 ### Added

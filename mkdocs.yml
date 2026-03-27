@@ -30,6 +30,7 @@ nav:
     - "Collections": "guide/collections.md"
     - "Requests": "guide/requests.md"
     - "Configuration": "guide/configuration.md"
+    - "Authentication": "guide/auth.md"
     - "Environments": "guide/environments.md"
     - "Command Palette": "guide/command_palette.md"
     - "Themes": "guide/themes.md"
