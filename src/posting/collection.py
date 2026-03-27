@@ -21,10 +21,11 @@ VALID_HTTP_METHODS = get_args(HttpRequestMethod)
 
 
 class Auth(BaseModel):
-    type: Literal["basic", "digest", "bearer_token"] | None = Field(default=None)
+    type: Literal["basic", "digest", "bearer_token", "oauth2_client_credentials"] | None = Field(default=None)
     basic: BasicAuth | None = Field(default=None)
     digest: DigestAuth | None = Field(default=None)
     bearer_token: BearerTokenAuth | None = Field(default=None)
+    oauth2_client_credentials: OAuth2ClientCredentials | None = Field(default=None)
 
     def to_httpx_auth(self) -> httpx.Auth | None:
         if self.type == "basic":
@@ -36,6 +37,9 @@ class Auth(BaseModel):
         elif self.type == "bearer_token":
             assert self.bearer_token is not None
             return HttpxBearerTokenAuth(self.bearer_token.token)
+        elif self.type == "oauth2_client_credentials":
+            # TODO: return OAuth2 httpx.Auth in layer 2
+            return None
         return None
 
     @classmethod
@@ -52,6 +56,26 @@ class Auth(BaseModel):
     def bearer_token_auth(cls, token: str) -> Auth:
         return cls(type="bearer_token", bearer_token=BearerTokenAuth(token=token))
 
+    @classmethod
+    def oauth2_client_credentials_auth(
+        cls,
+        token_url: str,
+        client_id: str,
+        client_secret: str,
+        scope: str = "",
+        extra_params: dict[str, str] | None = None,
+    ) -> Auth:
+        return cls(
+            type="oauth2_client_credentials",
+            oauth2_client_credentials=OAuth2ClientCredentials(
+                token_url=token_url,
+                client_id=client_id,
+                client_secret=client_secret,
+                scope=scope,
+                extra_params=extra_params or {},
+            ),
+        )
+
 
 class BasicAuth(BaseModel):
     username: str = Field(default="")
@@ -65,6 +89,14 @@ class DigestAuth(BaseModel):
 
 class BearerTokenAuth(BaseModel):
     token: str = Field(default="")
+
+
+class OAuth2ClientCredentials(BaseModel):
+    token_url: str = Field(default="")
+    client_id: str = Field(default="")
+    client_secret: str = Field(default="")
+    scope: str = Field(default="")
+    extra_params: dict[str, str] = Field(default_factory=dict)
 
 
 class PathParam(BaseModel):
@@ -256,6 +288,14 @@ class RequestModel(BaseModel):
                 if self.auth.bearer_token is not None:
                     template = Template(self.auth.bearer_token.token)
                     self.auth.bearer_token.token = template.substitute(variables)
+                if self.auth.oauth2_client_credentials is not None:
+                    oauth2 = self.auth.oauth2_client_credentials
+                    oauth2.token_url = Template(oauth2.token_url).substitute(variables)
+                    oauth2.client_id = Template(oauth2.client_id).substitute(variables)
+                    oauth2.client_secret = Template(oauth2.client_secret).substitute(variables)
+                    oauth2.scope = Template(oauth2.scope).substitute(variables)
+                    for key in oauth2.extra_params:
+                        oauth2.extra_params[key] = Template(oauth2.extra_params[key]).substitute(variables)
             # After resolving variables, substitute path parameters into the URL and ensure protocol
             if self.path_params:
                 substitutions = {p.name: p.value for p in self.path_params}
